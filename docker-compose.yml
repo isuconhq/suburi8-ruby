@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  db:
+    image: mariadb:5.5.60
+    container_name: isuconhq_mariadb
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_USER=isucon
+      - MYSQL_PASSWORD=isucon
+      - MYSQL_DATABASE=torb
+    ports:
+      - "127.0.0.1:3306:3306"
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ./docker/mariadb:/etc/mysql/conf.d
