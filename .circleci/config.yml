@@ -1,0 +1,14 @@
+version: 2.1
+
+workflows:
+  benchmark:
+    jobs:
+      - build
+
+jobs:
+  build:
+    working_directory: ~/app
+    docker:
+      - image: circleci/ruby:2.5.1-stretch
+    steps:
+      - run: echo "start"
