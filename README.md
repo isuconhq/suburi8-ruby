@@ -8,8 +8,14 @@
 ### mariadb
 
 ```sh
+# Use docker
 $ docker-compose up --no-start
 $ docker-compose start
+$ ./db/init.sh
+
+# Use Native
+$ MYSQL_HOME=$PWD/docker/mariadb mysql.server start
+$ ./db/init-user.sh
 $ ./db/init.sh
 ```
 
@@ -31,7 +37,10 @@ $ make
 ## Run
 
 ```sh
+# Use docker
 $ docker-compose start
+
+# Use all
 $ ./run_local.sh
 # Access localhost:8080
 ```
@@ -40,7 +49,7 @@ $ ./run_local.sh
 
 ```sh
 $ cd bench
-$ ./bin/bench
+$ ./bin._OS_/bench
 ```
 
 ### Retry
@@ -48,11 +57,15 @@ $ ./bin/bench
 ```sh
 $ ./db/init.sh
 $ cd bench
-$ ./bin/bench
+$ ./bin._OS_/bench
 ```
 
 ## Cleanup
 
 ```sh
+# Use docker
 $ docker-compose down -v
+
+# Use Native
+mysql.server stop
 ```
