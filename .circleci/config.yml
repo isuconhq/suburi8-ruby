@@ -1,14 +1,90 @@
 version: 2.1
 
+ruby_version: &ruby_version
+  2.5.1
+mariadb_version: &mariadb_version
+  5.5.60
+
 workflows:
   benchmark:
     jobs:
-      - build
+      - build_and_benchmark
 
 jobs:
-  build:
-    working_directory: ~/app
-    docker:
-      - image: circleci/ruby:2.5.1-stretch
+  build_and_benchmark:
+    executor: app
     steps:
-      - run: echo "start"
+      - dependent_install
+      - checkout
+      - bundle_install
+      - async_run
+      - benchmark
+      - slack
+
+commands:
+  dependent_install:
+    steps:
+      - run: sudo apt-get update && sudo apt-get install -y mysql-client
+
+  bundle_install:
+    steps:
+      - restore_cache:
+          keys:
+            - gem-cache-v2-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+            - gem-cache-v2-master
+      - run: gem install bundler -v 1.16.4
+      - run: bundle install --path vendor/bundle -j2
+      - save_cache:
+          key: gem-cache-v2-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+
+  async_run:
+    steps:
+      - run:
+          name: Start application
+          command: ./run_local.sh
+          background: true
+
+  benchmark:
+    steps:
+      - run:
+          name: Cleanup database
+          command: ./db/init.sh
+      - run:
+          name: Start benchmark
+          command: |
+            mkdir -p ~/log
+            cd bench
+            ./bin.linux/bench -output ~/log/result.json
+      - store_artifacts:
+          path: ~/log
+          destination: log
+
+  slack:
+    steps:
+      - run:
+          name: Slack notification
+          command: ruby ./.circleci/slack.rb
+
+executors:
+  app:
+    working_directory: ~/app
+    parameters:
+      ruby_version:
+        type: string
+        default: *ruby_version
+      mariadb_version:
+        type: string
+        default: *mariadb_version
+    docker:
+      - image: circleci/ruby:<< parameters.ruby_version >>-stretch
+        environment:
+          TZ: Asia/Tokyo
+      - image: circleci/mariadb:<< parameters.mariadb_version >>-ram
+        environment:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_USER: isucon
+          MYSQL_PASSWORD: isucon
+          MYSQL_DATABASE: torb
+        command: ["--sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"]
