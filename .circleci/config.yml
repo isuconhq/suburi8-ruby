@@ -19,6 +19,7 @@ jobs:
       - bundle_install
       - async_run
       - benchmark
+      - slack
 
 commands:
   dependent_install:
@@ -41,17 +42,30 @@ commands:
   async_run:
     steps:
       - run:
+          name: Start application
           command: ./run_local.sh
           background: true
 
   benchmark:
     steps:
-      - run: ./db/init.sh
+      - run:
+          name: Cleanup database
+          command: ./db/init.sh
       - run:
           name: Start benchmark
           command: |
+            mkdir -p ~/log
             cd bench
-            ./bin.linux/bench
+            ./bin.linux/bench -output ~/log/result.json
+      - store_artifacts:
+          path: ~/log
+          destination: log
+
+  slack:
+    steps:
+      - run:
+          name: Slack notification
+          command: ruby ./.circleci/slack.rb
 
 executors:
   app:
