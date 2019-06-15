@@ -66,6 +66,7 @@ module Torb
       end
 
       def get_events(where = nil)
+        measure(key: "get_events") do
         where ||= ->(e) { e['public_fg'] }
 
         db.query('BEGIN')
@@ -82,9 +83,11 @@ module Torb
         end
 
         events
+        end
       end
 
       def get_event(event_id, login_user_id = nil)
+        measure(key: "get_event") do
         event = db.xquery('SELECT * FROM events WHERE id = ?', event_id).first
         return unless event
 
@@ -123,41 +126,55 @@ module Torb
         event['closed'] = event.delete('closed_fg')
 
         event
+        end
       end
 
       def sanitize_event(event)
+        measure(key: "sanitize_event") do
         sanitized = event.dup  # shallow clone
         sanitized.delete('price')
         sanitized.delete('public')
         sanitized.delete('closed')
         sanitized
+        end
       end
 
       def get_login_user
+        measure(key: "get_login_user") do
         user_id = session[:user_id]
         return unless user_id
         db.xquery('SELECT id, nickname FROM users WHERE id = ?', user_id).first
+        end
       end
 
       def get_login_administrator
+        measure(key: "get_login_administrator") do
         administrator_id = session['administrator_id']
         return unless administrator_id
         db.xquery('SELECT id, nickname FROM administrators WHERE id = ?', administrator_id).first
+        end
       end
 
       def validate_rank(rank)
+        measure(key: "validate_rank") do
         db.xquery('SELECT COUNT(*) AS total_sheets FROM sheets WHERE `rank` = ?', rank).first['total_sheets'] > 0
+        end
       end
 
       def body_params
+        measure(key: "body_params") do
         @body_params ||= JSON.parse(request.body.tap(&:rewind).read)
+        end
       end
 
       def halt_with_error(status = 500, error = 'unknown')
+        measure(key: "halt_with_error") do
         halt status, { error: error }.to_json
+        end
       end
 
       def render_report_csv(reports)
+        measure(key: "render_report_csv") do
         reports = reports.sort_by { |report| report[:sold_at] }
 
         keys = %i[reservation_id event_id rank num price user_id sold_at canceled_at]
@@ -173,22 +190,28 @@ module Torb
           'Content-Disposition' => 'attachment; filename="report.csv"',
         })
         body
+        end
       end
     end
 
     get '/' do
+      measure(key: "GET /") do
       @user   = get_login_user
       @events = get_events.map(&method(:sanitize_event))
       erb :index
+      end
     end
 
     get '/initialize' do
+      measure(key: "GET /initialize") do
       system "../../db/init.sh"
 
       status 204
+      end
     end
 
     post '/api/users' do
+      measure(key: "POST /api/users") do
       nickname   = body_params['nickname']
       login_name = body_params['login_name']
       password   = body_params['password']
@@ -212,9 +235,11 @@ module Torb
 
       status 201
       { id: user_id, nickname: nickname }.to_json
+      end
     end
 
     get '/api/users/:id', login_required: true do |user_id|
+      measure(key: "GET /api/users/:id") do
       user = db.xquery('SELECT id, nickname FROM users WHERE id = ?', user_id).first
       if user['id'] != get_login_user['id']
         halt_with_error 403, 'forbidden'
@@ -251,10 +276,12 @@ module Torb
       user['recent_events'] = recent_events
 
       user.to_json
+      end
     end
 
 
     post '/api/actions/login' do
+      measure(key: "POST /api/actions/login") do
       login_name = body_params['login_name']
       password   = body_params['password']
 
@@ -266,28 +293,36 @@ module Torb
 
       user = get_login_user
       user.to_json
+      end
     end
 
     post '/api/actions/logout', login_required: true do
+      measure(key: "POST /api/actions/logout") do
       session.delete('user_id')
       status 204
+      end
     end
 
     get '/api/events' do
+      measure(key: "GET /api/events") do
       events = get_events.map(&method(:sanitize_event))
       events.to_json
+      end
     end
 
     get '/api/events/:id' do |event_id|
+      measure(key: "GET /api/events/:id") do
       user = get_login_user || {}
       event = get_event(event_id, user['id'])
       halt_with_error 404, 'not_found' if event.nil? || !event['public']
 
       event = sanitize_event(event)
       event.to_json
+      end
     end
 
     post '/api/events/:id/actions/reserve', login_required: true do |event_id|
+      measure(key: "POST /api/events/:id/actions/reserve") do
       rank = body_params['sheet_rank']
 
       user  = get_login_user
@@ -316,9 +351,11 @@ module Torb
 
       status 202
       { id: reservation_id, sheet_rank: rank, sheet_num: sheet['num'] } .to_json
+      end
     end
 
     delete '/api/events/:id/sheets/:rank/:num/reservation', login_required: true do |event_id, rank, num|
+      measure(key: "DELETE /api/events/:id/sheets/:rank/:num/reservation") do
       user  = get_login_user
       event = get_event(event_id, user['id'])
       halt_with_error 404, 'invalid_event' unless event && event['public']
@@ -348,16 +385,20 @@ module Torb
       end
 
       status 204
+      end
     end
 
     get '/admin/' do
+      measure(key: "GET /admin/") do
       @administrator = get_login_administrator
       @events = get_events(->(_) { true }) if @administrator
 
       erb :admin
+      end
     end
 
     post '/admin/api/actions/login' do
+      measure(key: "POST /admin/api/actions/login") do
       login_name = body_params['login_name']
       password   = body_params['password']
 
@@ -369,19 +410,25 @@ module Torb
 
       administrator = get_login_administrator
       administrator.to_json
+      end
     end
 
     post '/admin/api/actions/logout', admin_login_required: true do
+      measure(key: "POST /admin/api/actions/logout") do
       session.delete('administrator_id')
       status 204
+      end
     end
 
     get '/admin/api/events', admin_login_required: true do
+      measure(key: "GET /admin/api/events") do
       events = get_events(->(_) { true })
       events.to_json
+      end
     end
 
     post '/admin/api/events', admin_login_required: true do
+      measure(key: "POST /admin/api/events") do
       title  = body_params['title']
       public = body_params['public'] || false
       price  = body_params['price']
@@ -397,16 +444,20 @@ module Torb
 
       event = get_event(event_id)
       event&.to_json
+      end
     end
 
     get '/admin/api/events/:id', admin_login_required: true do |event_id|
+      measure(key: "GET /admin/api/events/:id") do
       event = get_event(event_id)
       halt_with_error 404, 'not_found' unless event
 
       event.to_json
+      end
     end
 
     post '/admin/api/events/:id/actions/edit', admin_login_required: true do |event_id|
+      measure(key: "POST /admin/api/events/:id/actions/edit") do
       public = body_params['public'] || false
       closed = body_params['closed'] || false
       public = false if closed
@@ -430,9 +481,11 @@ module Torb
 
       event = get_event(event_id)
       event.to_json
+      end
     end
 
     get '/admin/api/reports/events/:id/sales', admin_login_required: true do |event_id|
+      measure(key: "GET /admin/api/reports/events/:id/sales") do
       event = get_event(event_id)
 
       reservations = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC FOR UPDATE', event['id'])
@@ -450,9 +503,11 @@ module Torb
       end
 
       render_report_csv(reports)
+      end
     end
 
     get '/admin/api/reports/sales', admin_login_required: true do
+      measure(key: "GET /admin/api/reports/sales") do
       reservations = db.query('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC FOR UPDATE')
       reports = reservations.map do |reservation|
         {
@@ -468,6 +523,7 @@ module Torb
       end
 
       render_report_csv(reports)
+      end
     end
   end
 end
