@@ -88,35 +88,48 @@ module Torb
 
       def get_event(event_id, login_user_id = nil)
         measure(key: "get_event") do
+        # イベントの存在チェック
         event = db.xquery('SELECT * FROM events WHERE id = ?', event_id).first
         return unless event
 
+        # 初期化
         # zero fill
         event['total']   = 0
         event['remains'] = 0
+        # {sheets: {S: {total: 0, remains: 0, detail: []}}, {A: ...}, {B: ...}, {C: ...}}
         event['sheets'] = {}
         %w[S A B C].each do |rank|
           event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
         end
 
         sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
+        # 1000席
         sheets.each do |sheet|
+          # {sheets: {S: {price: "イベント料金 + 席料", ...}}, ...
           event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
+          # イベントの席数 +1
           event['total'] += 1
+          # ランクごとの席数 +1
           event['sheets'][sheet['rank']]['total'] += 1
 
+          # 席の予約を取得
           reservation = db.xquery('SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)', event['id'], sheet['id']).first
           if reservation
+            # sheet.mine = true / false
             sheet['mine']        = true if login_user_id && reservation['user_id'] == login_user_id
             sheet['reserved']    = true
             sheet['reserved_at'] = reservation['reserved_at'].to_i
           else
+            # 空き席 +1
             event['remains'] += 1
+            # ランクごとの空き席 +1
             event['sheets'][sheet['rank']]['remains'] += 1
           end
 
+          # ランクごとの詳細にsheetデータをadd array
           event['sheets'][sheet['rank']]['detail'].push(sheet)
 
+          # なんのためのdeleteかわからん
           sheet.delete('id')
           sheet.delete('price')
           sheet.delete('rank')
