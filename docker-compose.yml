@@ -11,7 +11,8 @@ services:
       - MYSQL_DATABASE=torb
     ports:
       - "127.0.0.1:3306:3306"
-    tmpfs:
-      - /var/lib/mysql
     volumes:
       - ./docker/mariadb:/etc/mysql/conf.d
+      - ./mysql/data:/var/lib/mysql               # dataの永続化
+      - ./log/mysql:/var/log/mysql
+
