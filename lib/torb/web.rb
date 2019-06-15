@@ -147,9 +147,11 @@ module Torb
 
       # {1: {user_id: 1, reserved_at: "2019/06/15"}, ...}
       def reserved_sheets(event_id)
+        measure(key: "reserved_sheets") do
         reservations = db.xquery('SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY sheet_id HAVING reserved_at = MIN(reserved_at)', event_id)
         reservations.each_with_object({}) do |r, hash|
           hash[r["sheet_id"]] = { user_id: r["user_id"], reserved_at: r["reserved_at"] }
+        end
         end
       end
 
