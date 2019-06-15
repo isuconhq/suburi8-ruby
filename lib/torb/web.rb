@@ -512,13 +512,12 @@ module Torb
 
     get '/admin/api/reports/events/:id/sales', admin_login_required: true do |event_id|
       measure(key: "GET /admin/api/reports/events/:id/sales") do
-      event = get_event(event_id)
 
-      reservations = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC FOR UPDATE', event['id'])
+      reservations = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC FOR UPDATE', event_id)
       reports = reservations.map do |reservation|
         {
           reservation_id: reservation['id'],
-          event_id:       event['id'],
+          event_id:       event_id,
           rank:           reservation['sheet_rank'],
           num:            reservation['sheet_num'],
           user_id:        reservation['user_id'],
