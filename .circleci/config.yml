@@ -65,6 +65,7 @@ commands:
     steps:
       - run:
           name: Slack notification
+          when: always
           command: ruby ./.circleci/slack.rb
 
 executors:
