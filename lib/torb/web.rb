@@ -62,7 +62,7 @@ module Torb
       def measure(key:, start_time: Time.now)
         return yield
       ensure
-        logger.info({ key: key, time: Time.now - start_time }.to_json)
+        logger.info({ key: key, time: Time.now - start_time }.to_json) if ENV["ACCESS_LOG"] == "1"
       end
 
       def get_events(where = nil)
