@@ -7,3 +7,5 @@ pkg
 
 .bundle
 /vendor
+log
+docker/mariadb/queries.log

@@ -125,6 +125,26 @@ module Torb
         event['public'] = event.delete('public_fg')
         event['closed'] = event.delete('closed_fg')
 
+        pp event
+        tmp = db.xquery(<<~SQL, event_id).to_a
+          SELECT s.num, s.rank, r.user_id, r.reserved_at, s.price
+          FROM sheets s
+          LEFT OUTER JOIN
+            SELECT * FROM reservations r
+            WHERE r.event_id = ?
+              AND r.canceled_at IS NULL
+            GROUP_BY r.event_id, r.sheet_id HAVING r.reserved_at = MIN(r.reserved_at)
+          ON s.id = r.sheet_id
+        SQL
+        tmp2 =  [
+          ['S', tmp.select {|hash| hash['rank'] == 'S' }.map {|hash| {'num' => hash['num'], 'reserved' => !hash['user_id'].nil?, 'reserved_at' => hash['reserved_at'].to_i} }],
+          ['A', tmp.select {|hash| hash['rank'] == 'A' }.map {|hash| {'num' => hash['num'], 'reserved' => !hash['user_id'].nil?, 'reserved_at' => hash['reserved_at'].to_i} }],
+          ['B', tmp.select {|hash| hash['rank'] == 'B' }.map {|hash| {'num' => hash['num'], 'reserved' => !hash['user_id'].nil?, 'reserved_at' => hash['reserved_at'].to_i} }],
+          ['C', tmp.select {|hash| hash['rank'] == 'C' }.map {|hash| {'num' => hash['num'], 'reserved' => !hash['user_id'].nil?, 'reserved_at' => hash['reserved_at'].to_i} }]
+        ].to_h
+        pp tmp2
+        pp tmp2 == event['seats']
+
         event
       end
 
