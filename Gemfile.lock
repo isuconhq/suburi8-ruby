@@ -7,6 +7,8 @@ GEM
       minitest (~> 5.1)
       tzinfo (~> 1.1)
     backports (3.11.4)
+    clogger (2.2.0)
+      rack (>= 1.0, < 3.0)
     concurrent-ruby (1.0.5)
     erubi (1.7.1)
     i18n (1.1.0)
@@ -43,6 +45,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  clogger
   erubi
   mysql2
   mysql2-cs-bind
