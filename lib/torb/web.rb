@@ -9,6 +9,13 @@ module Torb
     configure :development do
       require 'sinatra/reloader'
       register Sinatra::Reloader
+      set(:trace_log) { Logger.new('./log/development.log', formatter: ->(severity, datetime, progname, message) { "#{message}\n" }) }
+      set(:trace) {
+        TracePoint.new(:call, :return) do |tp|
+          settings.trace_log.info [tp.binding.object_id, tp.event, tp.method_id, Time.now.iso8601(6)].join(',') if settings.trace_target.include?(tp.method_id)
+        end
+      }
+      set trace_target: %i(get_events)
     end
 
     set :root, File.expand_path('../..', __dir__)
@@ -36,6 +43,14 @@ module Torb
 
     before '/api/*|/admin/api/*' do
       content_type :json
+    end
+
+    before '*' do
+      settings.trace.enable
+    end
+
+    after '*' do
+      settings.trace.disable
     end
 
     helpers do
