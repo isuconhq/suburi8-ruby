@@ -3,6 +3,8 @@ require 'sinatra/base'
 require 'erubi'
 require 'mysql2'
 require 'mysql2-cs-bind'
+require 'logger'
+require 'json'
 
 module Torb
   class Web < Sinatra::Base
@@ -51,6 +53,16 @@ module Torb
           reconnect: true,
           init_command: 'SET SESSION sql_mode="STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"',
         )
+      end
+
+      def logger
+        Thread.current[:logger] ||= Logger.new("./log/access.log", formatter: proc {|severity, datetime, progname, message| "#{message}\n" })
+      end
+
+      def measure(key:, start_time: Time.now)
+        return yield
+      ensure
+        logger.info({ key: key, time: Time.now - start_time }.to_json)
       end
 
       def get_events(where = nil)
