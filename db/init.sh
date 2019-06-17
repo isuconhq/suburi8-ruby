@@ -10,6 +10,7 @@ export MYSQL_HOST=127.0.0.1
 mysql -uisucon -e "DROP DATABASE IF EXISTS torb; CREATE DATABASE torb;"
 mysql -uisucon torb < "$DB_DIR/schema.sql"
 
+# 変更
 mysql -uisucon torb -e 'ALTER TABLE sheets ADD INDEX index_sheets_on_num(rank)'
 
 if [ ! -f "$DB_DIR/isucon8q-initial-dataset.sql.gz" ]; then
