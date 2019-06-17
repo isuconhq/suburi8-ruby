@@ -183,7 +183,7 @@ module Torb
 
       def validate_rank(rank)
         measure(key: "validate_rank") do
-        db.xquery('SELECT COUNT(*) AS total_sheets FROM sheets WHERE `rank` = ?', rank).first['total_sheets'] > 0
+        ["S", "A", "B", "C"].include?(rank)
         end
       end
 
