@@ -41,6 +41,8 @@ module Torb
       content_type :json
     end
 
+    @@sheet_hash = {}
+
     helpers do
       def db
         Thread.current[:db] ||= Mysql2::Client.new(
@@ -216,6 +218,18 @@ module Torb
           'Content-Disposition' => 'attachment; filename="report.csv"',
         })
         body
+        end
+      end
+
+      # {sheet_id: {rank: "S", num: 1, price: 1000}, ...}
+      def sheet_hash
+        measure(key: "sheet_hash") do
+        return @@sheet_hash unless @@sheet_hash.empty?
+
+        sheets       = db.query('SELECT * FROM sheets')
+        @@sheet_hash = sheets.each_with_object({}) do |sheet, hash|
+          hash[sheet["id"]] = { rank: sheet["rank"], num: sheet["num"], price: sheet["price"] }
+        end
         end
       end
     end
@@ -534,17 +548,22 @@ module Torb
 
     get '/admin/api/reports/sales', admin_login_required: true do
       measure(key: "GET /admin/api/reports/sales") do
-      reservations = db.query('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC FOR UPDATE')
+
+      # {event_id: price, ...}
+      events     = db.query('SELECT id, price FROM events')
+      event_hash = events.each_with_object({}) {|event, hash| hash[event["id"]] = event["price"] }
+
+      reservations = db.query('SELECT * FROM reservations ORDER BY reserved_at ASC FOR UPDATE')
       reports = reservations.map do |reservation|
         {
           reservation_id: reservation['id'],
           event_id:       reservation['event_id'],
-          rank:           reservation['sheet_rank'],
-          num:            reservation['sheet_num'],
+          rank:           sheet_hash[reservation['sheet_id']][:rank],
+          num:            sheet_hash[reservation['sheet_id']][:num],
           user_id:        reservation['user_id'],
           sold_at:        reservation['reserved_at'].iso8601,
           canceled_at:    reservation['canceled_at']&.iso8601 || '',
-          price:          reservation['event_price'] + reservation['sheet_price'],
+          price:          event_hash[reservation['event_id']] + sheet_hash[reservation['sheet_id']][:price],
         }
       end
 
