@@ -10,6 +10,8 @@ export MYSQL_HOST=127.0.0.1
 mysql -uisucon -e "DROP DATABASE IF EXISTS torb; CREATE DATABASE torb;"
 mysql -uisucon torb < "$DB_DIR/schema.sql"
 
+mysql -uisucon torb -e 'ALTER TABLE reservations ADD INDEX index_reservations_on_user_id(user_id)'
+
 if [ ! -f "$DB_DIR/isucon8q-initial-dataset.sql.gz" ]; then
   echo "Run the following command beforehand." 1>&2
   echo "$ ( cd \"$BENCH_DIR\" && bin/gen-initial-dataset )" 1>&2
