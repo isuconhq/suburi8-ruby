@@ -203,6 +203,7 @@ module Torb
 
       def render_report_csv(reports)
         measure(key: "render_report_csv") do
+        # 呼び出し元でsortしていないので絶対外さない
         reports = reports.sort_by { |report| report[:sold_at] }
 
         keys = %i[reservation_id event_id rank num price user_id sold_at canceled_at]
@@ -553,7 +554,7 @@ module Torb
       events     = db.query('SELECT id, price FROM events')
       event_hash = events.each_with_object({}) {|event, hash| hash[event["id"]] = event["price"] }
 
-      reservations = db.query('SELECT * FROM reservations ORDER BY reserved_at ASC FOR UPDATE')
+      reservations = db.query('SELECT * FROM reservations FOR UPDATE')
       reports = reservations.map do |reservation|
         {
           reservation_id: reservation['id'],
