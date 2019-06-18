@@ -103,7 +103,6 @@ module Torb
           event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
         end
 
-        sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
         # 1000席
         sheets.each do |sheet|
           # {sheets: {S: {price: "イベント料金 + 席料", ...}}, ...
@@ -217,6 +216,10 @@ module Torb
         })
         body
         end
+      end
+
+      def sheets
+        @sheets ||= db.query('SELECT * FROM sheets ORDER BY `rank`, num')
       end
     end
 
