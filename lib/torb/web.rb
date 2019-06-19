@@ -160,6 +160,7 @@ module Torb
         end
 
         # 1000席
+        r = reserved_sheets(event_id)
         sheets.each do |sheet|
           # {sheets: {S: {price: "イベント料金 + 席料", ...}}, ...
           event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
@@ -168,45 +169,27 @@ module Torb
           # ランクごとの席数 +1
           event['sheets'][sheet['rank']]['total'] += 1
 
+          # 予約済席の取得
+          if !r.empty? && r[sheet["id"]]
+            sheet["mine"]        = (login_user_id && r[sheet["id"]]["user_id"] == login_user_id)
+            sheet["reserved"]    = true
+            sheet["reserved_at"] = r[sheet["id"]]["reserved_at"].to_i
+          else
+            event["remains"] += 1
+            event["sheets"][sheet["rank"]]["remains"] += 1
+          end
+
           # ランクごとの詳細にsheetデータをadd array
           event['sheets'][sheet['rank']]['detail'].push(sheet)
-
-          # なんのためのdeleteかわからん
+          sheet.delete('id')
           sheet.delete('price')
           sheet.delete('rank')
-        end
-
-        # 予約済席の取得
-        reservations = reserved_sheets(event_id)
-        event["sheets"].each do |rank, sheets_hash|
-          sheets_hash["detail"].each do |sheet|
-            if r = reservations[sheet["id"]]
-              sheet["mine"]        = true if login_user_id && r["user_id"] == login_user_id
-              sheet["reserved"]    = true
-              sheet["reserved_at"] = r["reserved_at"].to_i
-            else
-              event["remains"] += 1
-              sheets_hash["remains"] += 1
-            end
-
-            sheet.delete('id')
-          end
         end
 
         event['public'] = event.delete('public_fg')
         event['closed'] = event.delete('closed_fg')
 
         event
-        end
-      end
-
-      # {1: {user_id: 1, reserved_at: "2019/06/15"}, ...}
-      def reserved_sheets(event_id)
-        measure(key: "reserved_sheets") do
-        reservations = db.xquery('SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)', event_id)
-        reservations.each_with_object({}) do |r, hash|
-          hash[r["sheet_id"]] = { user_id: r["user_id"], reserved_at: r["reserved_at"] }
-        end
         end
       end
 
@@ -272,6 +255,16 @@ module Torb
           'Content-Disposition' => 'attachment; filename="report.csv"',
         })
         body
+        end
+      end
+
+      # {1: {user_id: 1, reserved_at: "2019/06/15"}, ...}
+      def reserved_sheets(event_id)
+        measure(key: "reserved_sheets") do
+        reservations = db.xquery('SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)', event_id)
+        reservations.each_with_object({}) do |r, hash|
+          hash[r["sheet_id"]] = { user_id: r["user_id"], reserved_at: r["reserved_at"] }
+        end
         end
       end
 
