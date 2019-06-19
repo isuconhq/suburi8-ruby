@@ -76,8 +76,7 @@ module Torb
         db.query('BEGIN')
         begin
           event_ids = db.query('SELECT * FROM events ORDER BY id ASC').select(&where).map { |e| e['id'] }
-          events = event_ids.map do |event_id|
-            event = get_event(event_id)
+          events = get_event_by_ids(event_ids).map do |event|
             event['sheets'].each { |sheet| sheet.delete('detail') }
             event
           end
@@ -87,6 +86,60 @@ module Torb
         end
 
         events
+        end
+      end
+
+      def get_event_by_ids(event_ids)
+        measure(key: "get_event_by_ids") do
+        # {event_id: {sheet_id: {user_id: 1, reserved_at: "2019/06/19"}, ...}, ...}
+        res           = db.xquery('SELECT * FROM reservations WHERE event_id IN (?) AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)', event_ids)
+        reserved_hash = res.each_with_object({}) do |r, hash|
+          hash[r["event_id"]] = {} if hash[r["event_id"]].nil?
+          hash[r["event_id"]][r["sheet_id"]] = { user_id: r["user_id"], reserved_at: r["reserved_at"] }
+        end
+
+        events = db.xquery('SELECT * FROM events WHERE id IN (?)', event_ids)
+        events.map do |event|
+          event['total']   = 0
+          event['remains'] = 0
+          # {sheets: {S: {total: 0, remains: 0, detail: []}}, {A: ...}, {B: ...}, {C: ...}}
+          event['sheets'] = {}
+          %w[S A B C].each do |rank|
+            event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
+          end
+
+          # 1000席
+          r = reserved_hash[event["id"]]
+          sheets.each do |sheet|
+            # {sheets: {S: {price: "イベント料金 + 席料", ...}}, ...
+            event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
+            # イベントの席数 +1
+            event['total'] += 1
+            # ランクごとの席数 +1
+            event['sheets'][sheet['rank']]['total'] += 1
+
+            # 予約済席の取得
+            if !r.nil? && r[sheet["id"]]
+              sheet["mine"]        = false
+              sheet["reserved"]    = true
+              sheet["reserved_at"] = r[sheet["id"]]["reserved_at"].to_i
+            else
+              event["remains"] += 1
+              event["sheets"][sheet["rank"]]["remains"] += 1
+            end
+
+            # ランクごとの詳細にsheetデータをadd array
+            event['sheets'][sheet['rank']]['detail'].push(sheet)
+            sheet.delete('id')
+            sheet.delete('price')
+            sheet.delete('rank')
+          end
+
+          event['public'] = event.delete('public_fg')
+          event['closed'] = event.delete('closed_fg')
+
+          event
+        end
         end
       end
 
@@ -237,9 +290,10 @@ module Torb
       # db.query('SELECT * FROM sheets ORDER BY `rank`, num')の結果をメモ化
       def sheets
         measure(key: "sheets") do
-        return @@sheets.map {|sheet| sheet.dup } unless @@sheets.nil?
-
-        @@sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num').map {|sheet| sheet }
+        if @@sheets.nil?
+          @@sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num').map {|sheet| sheet }
+        end
+        @@sheets.map {|sheet| sheet.dup }
         end
       end
     end
