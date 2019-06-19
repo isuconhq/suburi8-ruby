@@ -42,6 +42,7 @@ module Torb
     end
 
     @@sheet_hash = {}
+    @@sheets     = nil
 
     helpers do
       def db
@@ -105,7 +106,6 @@ module Torb
           event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
         end
 
-        sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
         # 1000席
         sheets.each do |sheet|
           # {sheets: {S: {price: "イベント料金 + 席料", ...}}, ...
@@ -227,10 +227,19 @@ module Torb
         measure(key: "sheet_hash") do
         return @@sheet_hash unless @@sheet_hash.empty?
 
-        sheets       = db.query('SELECT * FROM sheets')
-        @@sheet_hash = sheets.each_with_object({}) do |sheet, hash|
+        res          = db.query('SELECT * FROM sheets')
+        @@sheet_hash = res.each_with_object({}) do |sheet, hash|
           hash[sheet["id"]] = { rank: sheet["rank"], num: sheet["num"], price: sheet["price"] }
         end
+        end
+      end
+
+      # db.query('SELECT * FROM sheets ORDER BY `rank`, num')の結果をメモ化
+      def sheets
+        measure(key: "sheets") do
+        return @@sheets.map {|sheet| sheet.dup } unless @@sheets.nil?
+
+        @@sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num').map {|sheet| sheet }
         end
       end
     end
