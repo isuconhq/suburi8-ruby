@@ -69,3 +69,13 @@ $ docker-compose down -v
 # Use Native
 mysql.server stop
 ```
+## MariaDB ベンチマーク
+#### 平均実行時間
+```
+$ dc exec db mysqldumpslow -s at /var/log/mysql/slow.log -t 10
+```
+
+#### クエリ合計時間
+```
+$ dc exec db mysqldumpslow -s t /var/log/mysql/slow.log -t 10
+```
